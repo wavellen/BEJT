@@ -1,67 +1,116 @@
-import http from "node:http";
-import {URL} from "node:url";
+import http from 'node:http';
+import { URL } from 'node:url';
+import { orderTable, generateNextOrderId, idempotencyCache, seedDatabase, Order } from './db';
 
-const todoStore: Array<{ id: number; task: string }> = [];
-let nextId = 1;
+seedDatabase();
+
 const MAX_ALLOWED_BYTES = 10 * 1024;
 
 const server = http.createServer((req, res) => {
-  const parsedUrl = new URL(req.url || "", `http://${req.headers.host}`);
+  const parsedUrl = new URL(req.url || '', `http://${req.headers.host}`);
   const method = req.method;
 
-  if (parsedUrl.pathname === "/todos" && method === "GET") {
-    res.writeHead(200, {"Content-Type": "application/json"});
-    res.end(JSON.stringify(todoStore));
-    return;
-  }
+  const sendResponse = (status: number, data: any) => {
+    res.writeHead(status, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(data));
+  };
 
-  const sendError = (status: number, message: string) => {
-    res.writeHead(status, {"Content-Type": "application/json"});
-    res.end(JSON.stringify({error: message}));
-  }
+  // ROUTE: GET /v1/orders (Cursor Pagination Architecture)
+  if (parsedUrl.pathname === '/v1/orders' && method === 'GET') {
+    const limit = parseInt(parsedUrl.searchParams.get('limit') || '10', 10);
+    // base64 encoded sequence id
+    const cursorStr = parsedUrl.searchParams.get('cursor');
 
-  if (parsedUrl.pathname === "/todos" && method === "POST") {
-    let body = "";
-    let bytesRecieved = 0;
+    let cursorId = 0;
+    if (cursorStr) {
+      cursorId = parseInt(Buffer.from(cursorStr, 'base64').toString('ascii'), 10);
+    }
 
-    req.on("data", (chunk) => {
-      bytesRecieved += chunk.length;
+    // under the hood WHERE id > cursor LIMIT limit
+    const filteredOrders = orderTable.filter(order => order.id > cursorId);
+    const paginatedResults = filteredOrders.slice(0, limit);
 
-      if (bytesRecieved > MAX_ALLOWED_BYTES) {
-        req.destroy();
-        console.warn("Alert: Heavy request severed mid-flight");
-      } else {
-        body += chunk.toString();
+    let nextCursor: string | null = null;
+    if (paginatedResults.length > 0) {
+      const lastItem = paginatedResults[paginatedResults.length - 1];
+      const hasMore = orderTable.some(order => order.id > lastItem.id);
+      if (hasMore) {
+        nextCursor = Buffer.from(lastItem.id.toString()).toString('base64');
+      }
+    }
+
+    return sendResponse(200, {
+      data: paginatedResults,
+      pagination: {
+        limit,
+        next_cursor: nextCursor
       }
     });
+  }
 
-    req.on("end", () => {
+  // ROUTE: POST /v1/orders (Idempotency Protected)
+  if (parsedUrl.pathname === '/v1/orders' && method === 'POST') {
+    const idempotencyKey = req.headers['idempotency-key'] as string;
+
+    if (!idempotencyKey) {
+      return sendResponse(400, { error: "Missing required 'Idempotency-Key' header entry." });
+    }
+
+    const cacheHit = idempotencyCache.get(idempotencyKey);
+    if (cacheHit) {
+      if (cacheHit.status === 'STARTED') {
+        return sendResponse(409, { error: "Concurrent operation in progress. Please retry shortly." });
+      }
+      return sendResponse(200, cacheHit.response);
+    }
+
+    // Lock the operation atomic state
+    idempotencyCache.set(idempotencyKey, { status: 'STARTED' });
+
+    let body = '';
+    let bytesReceived = 0;
+
+    req.on('data', (chunk) => {
+      bytesReceived += chunk.length;
+      if (bytesReceived > MAX_ALLOWED_BYTES) req.destroy();
+      else body += chunk.toString();
+    });
+
+    req.on('end', () => {
       if (req.destroyed) return;
 
       try {
-        const data = JSON.parse(body);
+        const payload = JSON.parse(body);
 
-        if(!data.task || typeof data.task !== "string") {
-          return sendError(400, "Invalid Payload Shape: task field missing or not a string.");
-        }
+        setTimeout(() => {
+          const newOrder: Order = {
+            // @ts-ignore
+            id: generateNextOrderId(),
+            userId: payload.userId || 'guest_user',
+            amount: payload.amount || 100,
+            createdAt: new Date()
+          };
 
-        const newTodo = {id: nextId++, task: data.task};
-        todoStore.push(newTodo);
+          orderTable.push(newOrder);
 
-        res.writeHead(201, {"Content-Type": "application/json"});
+          const successPayload = { message: "Order processed successfully", order: newOrder };
 
-        res.end(JSON.stringify(newTodo));
-      } catch (error) {
-        sendError(400, "Malformed payload entity. Parsing aborted.");
+          // Persist transaction execution results in state cache
+          idempotencyCache.set(idempotencyKey, { status: 'COMPLETED', response: successPayload });
+
+          return sendResponse(201, successPayload);
+        }, 1500);
+
+      } catch (err) {
+        idempotencyCache.delete(idempotencyKey); // Evict lock on runtime parse failures
+        return sendResponse(400, { error: 'Invalid body schema entity.' });
       }
     });
     return;
   }
 
-  sendError(404, "Route Entry Target Not Found");
+  res.writeHead(404, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: 'Endpoint target not found.' }));
 });
 
-const PORT = 3000;
-server.listen(PORT, () => {
-  console.log(`Server executing at http://localhost: ${PORT}`);
-});
+server.listen(3000, () => console.log('🛡️ Enterprise Core 1.1 operational on port 3000'));

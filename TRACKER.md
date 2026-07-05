@@ -12,11 +12,11 @@
 
 ### LEVEL 0 — Mechanics
 - [x] Raw HTTP Server (No Framework) | Status: COMPLETED
-- [ ] Idempotence & Protocol Probing | Status: NOT STARTED
+- [x] Idempotence & Protocol Probing | Status: COMPLETED
 - [x] Baseline Chaos Probing         | Status: COMPLETED
 
 ### LEVEL 1 — Core Backend Mechanics
-- [ ] 1.1 API Design (Cursors, Idempotency Keys) | Status: NOT STARTED
+- [x] 1.1 API Design (Cursors, Idempotency Keys) | Status: COMPLETED
 - [ ] 1.2 Relational Databases (Indexes, Migrations) | Status: NOT STARTED
 - [ ] 1.3 Auth & Identity (Sessions, JWT, OAuth, CPU Tuning) | Status: NOT STARTED
 - [ ] 1.4 Validation & Centralized Errors (RFC 7807) | Status: NOT STARTED
@@ -48,7 +48,8 @@
 | :--- | :--- | :--- | :--- | :--- |
 | e.g., 1.2 | Unindexed vs Indexed | 100k rows: 142ms (Seq Scan) | 100k rows: 0.8ms (Index Scan) | Stats matter; run ANALYZE after bulk seed. |
 | 0 | Unprotected Stream Parsing | Parsing Malformed JSON: App Crash (Exit Code 1) / Infinite data: Buffer unbounded entry | 400 Bad Request / 0ms crash prevention | Raw streams will consume infinite memory and throw untrapped exceptions unless bounded explicitly. |
-
+| 1.1 | API Cursor Pagination | Offset pagination scans linearly O(N) and risk page drift | Cursor isolates exact offset locations utilizing O(log N) sequence keys. | Cursors prevent mutations from causing item skipping or deuplication during infinite scroll processing. |
+| 1.1 | Idempotency Verification | Concurrent network retires generate duplicate database entries | Atomic trackign blocks overlapping requests and safely replays historical records | Idempotency tracking precvents double billing and daa corruption under high network jitter |
 ---
 
 ## Architecture / Pattern Decisions Ledger
