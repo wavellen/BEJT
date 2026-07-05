@@ -11,9 +11,9 @@
 ## Roadmap Progression Status
 
 ### LEVEL 0 — Mechanics
-- [ ] Raw HTTP Server (No Framework) | Status: NOT STARTED
+- [x] Raw HTTP Server (No Framework) | Status: COMPLETED
 - [ ] Idempotence & Protocol Probing | Status: NOT STARTED
-- [ ] Baseline Chaos Probing         | Status: NOT STARTED
+- [x] Baseline Chaos Probing         | Status: COMPLETED
 
 ### LEVEL 1 — Core Backend Mechanics
 - [ ] 1.1 API Design (Cursors, Idempotency Keys) | Status: NOT STARTED
@@ -47,6 +47,7 @@
 | Level | Topic / Experiment | "Broken" Baseline Metric | "Fixed" Guardrail Metric | Key Engineering Takeaway |
 | :--- | :--- | :--- | :--- | :--- |
 | e.g., 1.2 | Unindexed vs Indexed | 100k rows: 142ms (Seq Scan) | 100k rows: 0.8ms (Index Scan) | Stats matter; run ANALYZE after bulk seed. |
+| 0 | Unprotected Stream Parsing | Parsing Malformed JSON: App Crash (Exit Code 1) / Infinite data: Buffer unbounded entry | 400 Bad Request / 0ms crash prevention | Raw streams will consume infinite memory and throw untrapped exceptions unless bounded explicitly. |
 
 ---
 
