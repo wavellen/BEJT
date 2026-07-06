@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import http from 'node:http';
 import { URL } from 'node:url';
 import { orderTable, generateNextOrderId, idempotencyCache, seedDatabase, Order } from './db';
