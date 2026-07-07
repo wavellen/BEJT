@@ -3,7 +3,8 @@ dotenv.config();
 
 import http from 'node:http';
 import { URL } from 'node:url';
-import { orderTable, generateNextOrderId, idempotencyCache, seedDatabase, Order } from './db';
+import { orderTable, generateNextOrderId, idempotencyCache, seedDatabase } from './db';
+import type { Order } from "./db.ts";
 
 seedDatabase();
 
