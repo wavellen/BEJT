@@ -58,6 +58,7 @@
 | 1.1 | API Cursor Pagination | Offset pagination scans linearly O(N) and risk page drift | Cursor isolates exact offset locations utilizing O(log N) sequence keys. | Cursors prevent mutations from causing item skipping or deuplication during infinite scroll processing. |
 | 1.1 | Idempotency Verification | Concurrent network retires generate duplicate database entries | Atomic trackign blocks overlapping requests and safely replays historical records | Idempotency tracking precvents double billing and daa corruption under high network jitter |
 | 1.2 | Relational Index Profiling | 100k Rows: ~ 8.720 ms (Seq Scan) | 100k Rows: ~ 0.030 ms (Index Scan) | Running ANALYZE keeps query planning statistics accurate; unindexed filtering scales poorly as linear $O(N)$ operations. |
+| 1.3 | Argon2id Tuning Profile | High Security (128MB), Time: 4, Threads: 4, ExecutionTime: 116.47 ms, Throughput: ~8 req/sec | OWASP Minimum (19MB) - 2, 1, 27.64 ms, ~36 req/sec & OWASP Recommended (64MB) - 3, 4, 47.86 ms, ~20 req/sec | Argon2id mitigates GPU parallel cracking arrays via memory-hardness. Ensure memory allocations match server provisioning profiles. |
 
 ---
 
@@ -66,3 +67,4 @@
 *A permanent record of why we choose certain paths over others.*
 
 - *Entry 001:* Initializing project architecture. Opting for a monolithic layout that explicitly exposes raw network layers before wrapping them in middleware frameworks.
+- *Entry 002:* Swapped out Bcrypt for Argon2id. Avoided single-dimension CPU scaling in favor of memory-hard cryptography to resist modern GPU-accelerated brute-force parallel arrays.
